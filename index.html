@@ -210,15 +210,6 @@
   /* HOF induction status */
   .hof-not-inducted { font-size: 10px; color: rgba(240,244,252,0.28); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 5px; }
 
-  /* Awards section */
-  .awards-section { padding: 0.7rem 1.25rem 0.85rem; border-top: 1px solid rgba(255,255,255,0.05); }
-  .awards-grid { display: flex; flex-wrap: wrap; gap: 10px 18px; }
-  .award-item { text-align: center; min-width: 44px; }
-  .award-num { font-size: 17px; font-weight: 500; color: rgba(240,244,252,0.25); display: block; line-height: 1; }
-  .award-num.has-award { color: var(--silver-light); }
-  .award-lbl { font-size: 9px; color: rgba(240,244,252,0.32); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 3px; display: block; }
-  .award-lbl.has-award { color: rgba(240,244,252,0.5); }
-
   /* HOF criteria */
   .hof-section { margin-bottom: 1.5rem; }
   .section-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(184,196,212,0.6); margin-bottom: 0.75rem; }
@@ -356,12 +347,6 @@
   body.light-mode .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(13,28,53,0.25); color: #0d1c35; }
   body.light-mode .theme-toggle:hover { background: rgba(0,0,0,0.1); border-color: #1e3860; }
   body.light-mode .hof-not-inducted { color: rgba(13,28,53,0.3); }
-  body.light-mode .awards-section { border-color: rgba(0,0,0,0.06); }
-  body.light-mode .award-num { color: rgba(13,28,53,0.2); }
-  body.light-mode .award-num.has-award { color: #1e3860; }
-  body.light-mode .award-lbl { color: rgba(13,28,53,0.3); }
-  body.light-mode .award-lbl.has-award { color: rgba(13,28,53,0.55); }
-
   /* Percentile bar chart */
   .percentile-section { margin-bottom: 1.5rem; }
   .perc-card {
@@ -589,45 +574,18 @@ function showErr(msg) {
 }
 
 async function fetchStats(id) {
-  const [hRes, pRes, iRes, aRes, psHRes, psPRes] = await Promise.all([
+  const [hRes, pRes, iRes] = await Promise.all([
     fetch(`${MLB}/people/${id}/stats?stats=career&group=hitting&gameType=R&sportId=1`).then(r=>r.json()),
     fetch(`${MLB}/people/${id}/stats?stats=career&group=pitching&gameType=R&sportId=1`).then(r=>r.json()),
-    fetch(`${MLB}/people/${id}?hydrate=awards`).then(r=>r.json()),
-    fetch(`${MLB}/people/${id}/awards`).then(r=>r.json()).catch(()=>({awards:[]})),
-    fetch(`${MLB}/people/${id}/stats?stats=careerPlayoffs&group=hitting&gameType=P`).then(r=>r.json()).catch(()=>({})),
-    fetch(`${MLB}/people/${id}/stats?stats=careerPlayoffs&group=pitching&gameType=P`).then(r=>r.json()).catch(()=>({})),
+    fetch(`${MLB}/people/${id}`).then(r=>r.json()),
   ]);
-  const person = (iRes.people || [])[0] || {};
-  const awardsArr = aRes.awards || person.awards || [];
+  const person  = (iRes.people || [])[0] || {};
   const hitting  = (((hRes.stats||[])[0]||{}).splits||[])[0];
   const pitching = (((pRes.stats||[])[0]||{}).splits||[])[0];
-  const psHitSplit = (((psHRes.stats||[])[0]||{}).splits||[])[0];
-  const psPitSplit = (((psPRes.stats||[])[0]||{}).splits||[])[0];
-  const postseasonApps = Math.max(
-    +(psHitSplit?.stat?.gamesPlayed || 0),
-    +(psPitSplit?.stat?.gamesPlayed || 0)
-  );
   return {
     person,
     hitting:  hitting  ? hitting.stat  : null,
     pitching: pitching ? pitching.stat : null,
-    awards: parseAwards(awardsArr),
-    postseasonApps,
-  };
-}
-
-function parseAwards(arr) {
-  const awards = Array.isArray(arr) ? arr : [];
-  const has = (...terms) => awards.filter(a => {
-    const nm = (a.name || '').toLowerCase();
-    const id = (a.id  || '').toLowerCase();
-    return terms.some(t => nm.includes(t) || id.includes(t));
-  }).length;
-  return {
-    mvp:           has('most valuable player', 'mvp'),
-    cyYoung:       has('cy young', 'cya'),
-    goldGlove:     has('gold glove'),
-    silverSlugger: has('silver slugger'),
   };
 }
 
@@ -636,7 +594,7 @@ function isPitcher(person) {
   return ['P','SP','RP'].includes(pos);
 }
 
-function calcHOF(s, awards) {
+function calcHOF(s) {
   const pitcher = isPitcher(s.person);
   const hofMember = isHOFMember(s.person.fullName || s.person.name || '');
   const criteria = [];
@@ -662,12 +620,7 @@ function calcHOF(s, awards) {
   }
   const yes = criteria.filter(c=>c.met==='yes').length;
   const part = criteria.filter(c=>c.met==='partial').length;
-  let score = criteria.length ? (yes*2+part)/(criteria.length*2) : 0;
-  if (awards) {
-    score += 0.12 * Math.min(awards.mvp, 3);
-    if (pitcher) score += 0.12 * Math.min(awards.cyYoung, 3);
-    if (!pitcher && awards.goldGlove >= 3) score += 0.04;
-  }
+  const score = criteria.length ? (yes*2+part)/(criteria.length*2) : 0;
   const verdict = hofMember ? 'hof' : score >= 0.65 ? 'yes' : score >= 0.30 ? 'borderline' : 'no';
   return { criteria, verdict, hofMember };
 }
@@ -721,19 +674,6 @@ function renderPercentileBars(sel1, sel2, stats1, stats2) {
   </div>`;
 }
 
-function renderAwards(awards, pitcher, postseasonApps) {
-  if (!awards) return '';
-  const ps = postseasonApps || 0;
-  const items = pitcher
-    ? [['Cy Young', awards.cyYoung], ['MVP', awards.mvp], ['Postseason G', ps]]
-    : [['MVP', awards.mvp], ['Gold Gloves', awards.goldGlove], ['Silver Sluggers', awards.silverSlugger], ['Postseason G', ps]];
-  const html = items.map(([lbl, val]) => {
-    const hi = val > 0 ? ' has-award' : '';
-    return `<div class="award-item"><span class="award-num${hi}">${val}</span><span class="award-lbl${hi}">${lbl}</span></div>`;
-  }).join('');
-  return `<div class="awards-section"><div class="awards-grid">${html}</div></div>`;
-}
-
 function renderCard(sel, stats, hof) {
   const pitcher = isPitcher(stats.person);
   const st = pitcher ? stats.pitching : stats.hitting;
@@ -771,7 +711,6 @@ function renderCard(sel, stats, hof) {
       ${notInducted}
     </div>
     <div class="pcard-stats">${rows}</div>
-    ${renderAwards(stats.awards, pitcher, stats.postseasonApps)}
   </div>`;
 }
 
@@ -805,7 +744,7 @@ async function doCompare() {
   document.getElementById('cmpBtn').disabled = true;
   try {
     const [s1, s2] = await Promise.all([fetchStats(selected[0].id), fetchStats(selected[1].id)]);
-    const hof1 = calcHOF(s1, s1.awards), hof2 = calcHOF(s2, s2.awards);
+    const hof1 = calcHOF(s1), hof2 = calcHOF(s2);
     document.getElementById('playerCards').innerHTML = renderCard(selected[0], s1, hof1) + renderCard(selected[1], s2, hof2);
     document.getElementById('percSection').innerHTML = renderPercentileBars(selected[0], selected[1], s1, s2);
     document.getElementById('hofGrid').innerHTML = renderHOF(selected[0], hof1) + renderHOF(selected[1], hof2);
