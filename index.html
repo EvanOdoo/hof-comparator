@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MLB HOF Comparator</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --green: #1a3a1a;
+    --green-mid: #2d5a2d;
+    --green-light: #3d7a3d;
+    --gold: #c9a84c;
+    --gold-light: #e8c96a;
+    --cream: #f5f0e8;
+    --cream-dark: #e8e0d0;
+    --dirt: #8b6914;
+    --white: #ffffff;
+    --red: #c0392b;
+    --amber: #d4890a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--green);
+    color: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Field texture background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 60px,
+        rgba(255,255,255,0.015) 60px,
+        rgba(255,255,255,0.015) 61px
+      ),
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 60px,
+        rgba(255,255,255,0.015) 60px,
+        rgba(255,255,255,0.015) 61px
+      );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  /* Header */
+  .site-header { text-align: center; padding: 3rem 0 2.5rem; border-bottom: 1px solid rgba(201,168,76,0.3); margin-bottom: 2.5rem; }
+  .site-header .eyebrow { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; margin-bottom: 0.75rem; }
+  .site-header h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(52px, 10vw, 96px); line-height: 0.9; color: var(--cream); letter-spacing: 0.02em; }
+  .site-header h1 span { color: var(--gold); }
+  .site-header p { font-size: 14px; color: rgba(245,240,232,0.6); margin-top: 1rem; font-weight: 300; }
+
+  /* Search area */
+  .search-section { margin-bottom: 2rem; }
+  .search-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  .search-field { display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .search-field label { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+  .search-field input {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 6px;
+    color: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    padding: 12px 16px;
+    width: 100%;
+    transition: border-color 0.2s, background 0.2s;
+    outline: none;
+  }
+  .search-field input::placeholder { color: rgba(245,240,232,0.3); }
+  .search-field input:focus { border-color: var(--gold); background: rgba(255,255,255,0.09); }
+
+  /* Suggestions dropdown */
+  .suggestions {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: #1e3a1e;
+    border: 1px solid rgba(201,168,76,0.4);
+    border-radius: 6px;
+    z-index: 100;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .sugg-item {
+    padding: 10px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--cream);
+    transition: background 0.15s;
+  }
+  .sugg-item:last-child { border-bottom: none; }
+  .sugg-item:hover { background: rgba(201,168,76,0.15); }
+  .sugg-item .sugg-meta { font-size: 11px; color: rgba(245,240,232,0.45); }
+  .sugg-item .sugg-pos { font-size: 11px; color: var(--gold); margin-left: 6px; }
+
+  /* Selected badge */
+  .selected-tag {
+    display: none;
+    font-size: 11px;
+    color: #3d7a3d;
+    background: rgba(61,122,61,0.2);
+    border: 1px solid rgba(61,122,61,0.4);
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin-top: 4px;
+    width: fit-content;
+  }
+
+  .search-status { font-size: 12px; color: rgba(245,240,232,0.4); padding: 8px 0; display: none; }
+
+  /* Compare button */
+  .compare-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background: var(--gold);
+    color: var(--green);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.1em;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    margin-top: 1rem;
+  }
+  .compare-btn:hover { background: var(--gold-light); }
+  .compare-btn:active { transform: scale(0.99); }
+  .compare-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Quick picks */
+  .quick-picks { margin-top: 1rem; }
+  .quick-picks p { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(245,240,232,0.4); margin-bottom: 0.5rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 12px;
+    padding: 5px 12px;
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 20px;
+    cursor: pointer;
+    color: rgba(245,240,232,0.6);
+    transition: all 0.15s;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .chip:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Error */
+  .err-msg { font-size: 13px; color: #e05252; background: rgba(192,57,43,0.15); border: 1px solid rgba(192,57,43,0.3); border-radius: 6px; padding: 10px 14px; margin-top: 0.75rem; display: none; }
+
+  /* Loading */
+  .loading { text-align: center; padding: 3rem; display: none; }
+  .loading-inner { display: inline-flex; flex-direction: column; align-items: center; gap: 1rem; }
+  .spinner { width: 36px; height: 36px; border: 2px solid rgba(201,168,76,0.2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { font-size: 13px; color: rgba(245,240,232,0.5); letter-spacing: 0.05em; }
+
+  /* Results */
+  .results { display: none; animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  .results-header { text-align: center; margin-bottom: 2rem; }
+  .results-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--gold); letter-spacing: 0.05em; }
+  .results-header p { font-size: 13px; color: rgba(245,240,232,0.5); margin-top: 4px; }
+
+  /* Player cards */
+  .player-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+  .pcard {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .pcard-top {
+    background: rgba(201,168,76,0.08);
+    border-bottom: 1px solid rgba(201,168,76,0.15);
+    padding: 1.25rem;
+  }
+  .pcard-name { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 0.03em; color: var(--cream); line-height: 1; }
+  .pcard-meta { font-size: 12px; color: rgba(245,240,232,0.5); margin-top: 4px; }
+  .verdict-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .v-yes { background: rgba(45,160,45,0.2); color: #6dbb6d; border: 1px solid rgba(45,160,45,0.3); }
+  .v-borderline { background: rgba(212,137,10,0.2); color: #e8a832; border: 1px solid rgba(212,137,10,0.3); }
+  .v-no { background: rgba(192,57,43,0.2); color: #e05252; border: 1px solid rgba(192,57,43,0.3); }
+
+  .pcard-stats { padding: 1rem 1.25rem; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-lbl { color: rgba(245,240,232,0.5); }
+  .stat-val { font-weight: 500; color: var(--cream); font-variant-numeric: tabular-nums; }
+  .stat-val.hi { color: var(--gold-light); }
+
+  /* HOF criteria */
+  .hof-section { margin-bottom: 1.5rem; }
+  .section-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(201,168,76,0.6); margin-bottom: 0.75rem; }
+  .hof-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .hof-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+  .hof-card-name { font-size: 13px; font-weight: 500; color: var(--gold); margin-bottom: 0.75rem; }
+  .crit-row { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
+  .crit-row:last-child { border-bottom: none; }
+  .crit-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+  .ci-yes { color: #6dbb6d; }
+  .ci-partial { color: #e8a832; }
+  .ci-no { color: #e05252; }
+  .crit-body { line-height: 1.4; }
+  .crit-val { font-weight: 500; color: var(--cream); display: block; }
+  .crit-bench { color: rgba(245,240,232,0.4); font-size: 11px; }
+
+  /* Analysis box */
+  .analysis-box {
+    background: rgba(201,168,76,0.07);
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .analysis-box .analysis-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.5rem; }
+  .analysis-box p { font-size: 14px; color: rgba(245,240,232,0.8); line-height: 1.7; font-weight: 300; }
+
+  /* Reset */
+  .reset-row { text-align: center; }
+  .reset-btn {
+    font-size: 13px;
+    color: rgba(245,240,232,0.4);
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .reset-btn:hover { color: var(--cream); border-color: rgba(255,255,255,0.25); }
+
+  @media (max-width: 600px) {
+    .search-grid { grid-template-columns: 1fr; }
+    .player-cards { grid-template-columns: 1fr; }
+    .hof-grid { grid-template-columns: 1fr; }
+    .site-header h1 { font-size: 56px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="site-header">
+    <div class="eyebrow">The Hall of Fame Debate</div>
+    <h1>MLB <span>HOF</span><br>Comparator</h1>
+    <p>Search any two players — live career stats from the official MLB API</p>
+  </header>
+
+  <section class="search-section" id="searchSection">
+    <div class="search-grid">
+      <div class="search-field">
+        <label>Player 1</label>
+        <input type="text" id="q1" placeholder="e.g. Derek Jeter" autocomplete="off" />
+        <div class="suggestions" id="sugg1"></div>
+        <div class="selected-tag" id="tag1">✓ <span id="tag1text"></span></div>
+        <div class="search-status" id="status1">Searching...</div>
+      </div>
+      <div class="search-field">
+        <label>Player 2</label>
+        <input type="text" id="q2" placeholder="e.g. Barry Bonds" autocomplete="off" />
+        <div class="suggestions" id="sugg2"></div>
+        <div class="selected-tag" id="tag2">✓ <span id="tag2text"></span></div>
+        <div class="search-status" id="status2">Searching...</div>
+      </div>
+    </div>
+
+    <div class="err-msg" id="errMsg"></div>
+
+    <button class="compare-btn" id="cmpBtn" onclick="doCompare()">Compare Players</button>
+
+    <div class="quick-picks">
+      <p>Try a matchup</p>
+      <div class="chips">
+        <button class="chip" onclick="setQuick('Derek Jeter','Alex Rodriguez')">Jeter vs A-Rod</button>
+        <button class="chip" onclick="setQuick('Ken Griffey Jr.','Mike Piazza')">Griffey vs Piazza</button>
+        <button class="chip" onclick="setQuick('Barry Bonds','Roger Clemens')">Bonds vs Clemens</button>
+        <button class="chip" onclick="setQuick('Mike Trout','Shohei Ohtani')">Trout vs Ohtani</button>
+        <button class="chip" onclick="setQuick('Randy Johnson','Pedro Martinez')">RJ vs Pedro</button>
+        <button class="chip" onclick="setQuick('Albert Pujols','Miguel Cabrera')">Pujols vs Cabrera</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="loading" id="loading">
+    <div class="loading-inner">
+      <div class="spinner"></div>
+      <p>Pulling career stats...</p>
+    </div>
+  </div>
+
+  <section class="results" id="results">
+    <div class="results-header">
+      <h2 id="resultsTitle">Head to Head</h2>
+      <p id="resultsSubtitle"></p>
+    </div>
+    <div class="player-cards" id="playerCards"></div>
+    <div class="hof-section">
+      <div class="section-label">HOF criteria breakdown</div>
+      <div class="hof-grid" id="hofGrid"></div>
+    </div>
+    <div class="analysis-box" id="analysisBox" style="display:none">
+      <div class="analysis-label">Analysis</div>
+      <p id="analysisText"></p>
+    </div>
+    <div class="reset-row">
+      <button class="reset-btn" onclick="resetAll()">← New comparison</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const MLB = 'https://statsapi.mlb.com/api/v1';
+const selected = [null, null];
+let timers = [null, null];
+
+function setupInput(idx) {
+  const inp = document.getElementById('q' + (idx+1));
+  inp.addEventListener('input', () => {
+    clearTimeout(timers[idx]);
+    const v = inp.value.trim();
+    selected[idx] = null;
+    document.getElementById('tag' + (idx+1)).style.display = 'none';
+    if (v.length < 2) { hideSugg(idx); return; }
+    timers[idx] = setTimeout(() => searchPlayers(v, idx), 400);
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Escape') hideSugg(idx);
+  });
+  document.addEventListener('click', e => {
+    if (!inp.contains(e.target)) hideSugg(idx);
+  });
+}
+
+function hideSugg(idx) {
+  document.getElementById('sugg' + (idx+1)).style.display = 'none';
+}
+
+async function searchPlayers(q, idx) {
+  const st = document.getElementById('status' + (idx+1));
+  const sugg = document.getElementById('sugg' + (idx+1));
+  st.style.display = 'block';
+  sugg.style.display = 'none';
+  try {
+    const res = await fetch(`${MLB}/people/search?names=${encodeURIComponent(q)}&sportId=1`);
+    const data = await res.json();
+    const people = (data.people || []).filter(p => p.primaryPosition).slice(0, 8);
+    if (!people.length) {
+      sugg.innerHTML = `<div class="sugg-item" style="color:rgba(245,240,232,0.4)">No players found</div>`;
+    } else {
+      sugg.innerHTML = people.map(p => {
+        const pos = (p.primaryPosition || {}).abbreviation || '';
+        const debut = p.mlbDebutDate ? p.mlbDebutDate.slice(0,4) : '';
+        const last = p.lastPlayedDate ? p.lastPlayedDate.slice(0,4) : '';
+        const era = debut ? (p.active ? debut + '–present' : debut + (last ? '–' + last : '')) : '';
+        return `<div class="sugg-item" onclick="pick(${idx},${p.id},'${esc(p.fullName)}','${pos}',${!!p.active})">
+          <span>${p.fullName}<span class="sugg-pos">${pos}</span></span>
+          <span class="sugg-meta">${era}</span>
+        </div>`;
+      }).join('');
+    }
+    sugg.style.display = 'block';
+  } catch(e) {
+    sugg.innerHTML = `<div class="sugg-item" style="color:rgba(245,240,232,0.4)">Search unavailable</div>`;
+    sugg.style.display = 'block';
+  } finally {
+    st.style.display = 'none';
+  }
+}
+
+function esc(s) { return s.replace(/'/g, "\\'"); }
+
+function pick(idx, id, name, pos, active) {
+  selected[idx] = { id, name, pos, active };
+  document.getElementById('q' + (idx+1)).value = name;
+  hideSugg(idx);
+  const tag = document.getElementById('tag' + (idx+1));
+  document.getElementById('tag' + (idx+1) + 'text').textContent = name;
+  tag.style.display = 'block';
+  showErr('');
+}
+
+function setQuick(n1, n2) {
+  document.getElementById('q1').value = n1;
+  document.getElementById('q2').value = n2;
+  selected[0] = null; selected[1] = null;
+  document.getElementById('tag1').style.display = 'none';
+  document.getElementById('tag2').style.display = 'none';
+  searchAndPick(n1, 0);
+  searchAndPick(n2, 1);
+}
+
+async function searchAndPick(name, idx) {
+  try {
+    const res = await fetch(`${MLB}/people/search?names=${encodeURIComponent(name)}&sportId=1`);
+    const data = await res.json();
+    const p = (data.people || [])[0];
+    if (p) {
+      const pos = (p.primaryPosition || {}).abbreviation || '';
+      pick(idx, p.id, p.fullName, pos, !!p.active);
+    }
+  } catch(e) {}
+}
+
+function showErr(msg) {
+  const el = document.getElementById('errMsg');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+async function fetchStats(id) {
+  const [hRes, pRes, iRes] = await Promise.all([
+    fetch(`${MLB}/people/${id}/stats?stats=career&group=hitting&gameType=R&sportId=1`).then(r=>r.json()),
+    fetch(`${MLB}/people/${id}/stats?stats=career&group=pitching&gameType=R&sportId=1`).then(r=>r.json()),
+    fetch(`${MLB}/people/${id}?hydrate=awards`).then(r=>r.json())
+  ]);
+  const person = (iRes.people || [])[0] || {};
+  const hitting = (((hRes.stats||[])[0]||{}).splits||[])[0];
+  const pitching = (((pRes.stats||[])[0]||{}).splits||[])[0];
+  return { person, hitting: hitting ? hitting.stat : null, pitching: pitching ? pitching.stat : null };
+}
+
+function isPitcher(person) {
+  const pos = (person.primaryPosition || {}).abbreviation || '';
+  return ['P','SP','RP'].includes(pos);
+}
+
+function calcHOF(s) {
+  const pitcher = isPitcher(s.person);
+  const criteria = [];
+  if (pitcher && s.pitching) {
+    const p = s.pitching;
+    const w = +p.wins||0, era = +p.era||99, so = +p.strikeOuts||0, ip = +p.inningsPitched||0, whip = +p.whip||99, sv = +p.saves||0;
+    criteria.push({ label:'Career wins', val: w, display: w, met: w>=300?'yes':w>=200?'partial':'no', bench:'300 wins = HOF benchmark' });
+    criteria.push({ label:'ERA', val: era, display: era.toFixed(2), met: era<2.75?'yes':era<3.50?'partial':'no', bench:'Under 3.00 is elite' });
+    criteria.push({ label:'Strikeouts', val: so, display: so.toLocaleString(), met: so>=3000?'yes':so>=2000?'partial':'no', bench:'3,000 K = HOF benchmark' });
+    criteria.push({ label:'Innings pitched', val: ip, display: Math.round(ip).toLocaleString(), met: ip>=3000?'yes':ip>=2000?'partial':'no', bench:'3,000 IP shows longevity' });
+    criteria.push({ label:'WHIP', val: whip, display: whip.toFixed(3), met: whip<1.10?'yes':whip<1.30?'partial':'no', bench:'Under 1.10 is elite' });
+    if (sv > 100) criteria.push({ label:'Saves', val: sv, display: sv, met: sv>=400?'yes':sv>=300?'partial':'no', bench:'400+ saves = HOF closer' });
+  } else if (s.hitting) {
+    const h = s.hitting;
+    const hits=+h.hits||0, hr=+h.homeRuns||0, rbi=+h.rbi||0, avg=+h.avg||0, obp=+h.obp||0, slg=+h.slg||0, g=+h.gamesPlayed||0, sb=+h.stolenBases||0;
+    criteria.push({ label:'Career hits', val: hits, display: hits.toLocaleString(), met: hits>=3000?'yes':hits>=2000?'partial':'no', bench:'3,000 hits = near-automatic HOF' });
+    criteria.push({ label:'Home runs', val: hr, display: hr, met: hr>=500?'yes':hr>=300?'partial':'no', bench:'500 HR = HOF benchmark' });
+    criteria.push({ label:'RBI', val: rbi, display: rbi.toLocaleString(), met: rbi>=1500?'yes':rbi>=1000?'partial':'no', bench:'1,500+ RBI is elite' });
+    criteria.push({ label:'Batting average', val: avg, display: avg.toFixed(3), met: avg>=0.300?'yes':avg>=0.275?'partial':'no', bench:'.300 career AVG is the bar' });
+    criteria.push({ label:'OBP', val: obp, display: obp.toFixed(3), met: obp>=0.380?'yes':obp>=0.350?'partial':'no', bench:'.380+ OBP is elite' });
+    criteria.push({ label:'SLG', val: slg, display: slg.toFixed(3), met: slg>=0.500?'yes':slg>=0.450?'partial':'no', bench:'.500+ SLG is elite' });
+    criteria.push({ label:'Games played', val: g, display: g.toLocaleString(), met: g>=2000?'yes':g>=1500?'partial':'no', bench:'2,000+ games shows longevity' });
+  }
+  const yes = criteria.filter(c=>c.met==='yes').length;
+  const part = criteria.filter(c=>c.met==='partial').length;
+  const score = criteria.length ? (yes*2+part)/(criteria.length*2) : 0;
+  return { criteria, verdict: score>=0.6?'yes':score>=0.3?'borderline':'no' };
+}
+
+function verdictLabel(v) { return v==='yes'?'Strong HOF case':v==='borderline'?'Borderline HOF':'Below HOF threshold'; }
+
+function renderCard(sel, stats, hof) {
+  const pitcher = isPitcher(stats.person);
+  const st = pitcher ? stats.pitching : stats.hitting;
+  const pos = (stats.person.primaryPosition||{}).name || sel.pos || '';
+  const active = stats.person.active ? 'Active' : 'Retired';
+  let rows = '';
+  if (pitcher && st) {
+    rows = [
+      ['Wins', st.wins||'—'],
+      ['ERA', (+st.era||0).toFixed(2)],
+      ['Strikeouts', (+st.strikeOuts||0).toLocaleString()],
+      ['Innings pitched', Math.round(+st.inningsPitched||0).toLocaleString()],
+      ['WHIP', (+st.whip||0).toFixed(3)],
+      ['Saves', st.saves||'0'],
+    ].map(([l,v])=>`<div class="stat-row"><span class="stat-lbl">${l}</span><span class="stat-val">${v}</span></div>`).join('');
+  } else if (st) {
+    const avg = +st.avg||0;
+    const obp = +st.obp||0;
+    rows = [
+      ['Games', (+st.gamesPlayed||0).toLocaleString()],
+      ['Hits', (+st.hits||0).toLocaleString()],
+      ['Home runs', st.homeRuns||'—'],
+      ['RBI', (+st.rbi||0).toLocaleString()],
+      ['AVG / OBP / SLG', `${avg.toFixed(3)} / ${obp.toFixed(3)} / ${(+st.slg||0).toFixed(3)}`],
+      ['Stolen bases', st.stolenBases||'0'],
+    ].map(([l,v])=>`<div class="stat-row"><span class="stat-lbl">${l}</span><span class="stat-val">${v}</span></div>`).join('');
+  } else {
+    rows = `<div class="stat-row"><span class="stat-lbl" style="color:rgba(245,240,232,0.4)">No career stats found</span></div>`;
+  }
+  return `<div class="pcard">
+    <div class="pcard-top">
+      <div class="pcard-name">${sel.name}</div>
+      <div class="pcard-meta">${pos} · ${active}</div>
+      <span class="verdict-badge v-${hof.verdict}">${verdictLabel(hof.verdict)}</span>
+    </div>
+    <div class="pcard-stats">${rows}</div>
+  </div>`;
+}
+
+function renderHOF(sel, hof) {
+  const rows = hof.criteria.map(c => {
+    const cls = c.met==='yes'?'ci-yes':c.met==='partial'?'ci-partial':'ci-no';
+    const sym = c.met==='yes'?'✓':c.met==='partial'?'◑':'✗';
+    return `<div class="crit-row">
+      <span class="crit-icon ${cls}">${sym}</span>
+      <div class="crit-body">
+        <span class="crit-val">${c.label}: ${c.display}</span>
+        <span class="crit-bench">${c.bench}</span>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="hof-card"><div class="hof-card-name">${sel.name}</div>${rows}</div>`;
+}
+
+async function doCompare() {
+  if (!selected[0] || !selected[1]) {
+    showErr('Please search and select both players from the dropdown first.');
+    return;
+  }
+  if (selected[0].id === selected[1].id) {
+    showErr('Please select two different players.');
+    return;
+  }
+  showErr('');
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('cmpBtn').disabled = true;
+  try {
+    const [s1, s2] = await Promise.all([fetchStats(selected[0].id), fetchStats(selected[1].id)]);
+    const hof1 = calcHOF(s1), hof2 = calcHOF(s2);
+    document.getElementById('playerCards').innerHTML = renderCard(selected[0], s1, hof1) + renderCard(selected[1], s2, hof2);
+    document.getElementById('hofGrid').innerHTML = renderHOF(selected[0], hof1) + renderHOF(selected[1], hof2);
+    document.getElementById('resultsTitle').textContent = selected[0].name + ' vs ' + selected[1].name;
+    document.getElementById('resultsSubtitle').textContent = 'Career stats via MLB Stats API';
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('searchSection').style.display = 'none';
+  } catch(e) {
+    showErr('Could not load stats. Check your internet connection and try again.');
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('cmpBtn').disabled = false;
+  }
+}
+
+function resetAll() {
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('searchSection').style.display = 'block';
+  document.getElementById('q1').value = '';
+  document.getElementById('q2').value = '';
+  document.getElementById('tag1').style.display = 'none';
+  document.getElementById('tag2').style.display = 'none';
+  selected[0] = null; selected[1] = null;
+}
+
+setupInput(0);
+setupInput(1);
+</script>
+</body>
+</html>
