@@ -589,38 +589,42 @@ function showErr(msg) {
 }
 
 async function fetchStats(id) {
-  const [hRes, pRes, iRes, aRes] = await Promise.all([
+  const [hRes, pRes, iRes, aRes, psHRes, psPRes] = await Promise.all([
     fetch(`${MLB}/people/${id}/stats?stats=career&group=hitting&gameType=R&sportId=1`).then(r=>r.json()),
     fetch(`${MLB}/people/${id}/stats?stats=career&group=pitching&gameType=R&sportId=1`).then(r=>r.json()),
     fetch(`${MLB}/people/${id}?hydrate=awards`).then(r=>r.json()),
-    fetch(`${MLB}/people/${id}/awards`).then(r=>r.json()).catch(()=>({awards:[]}))
+    fetch(`${MLB}/people/${id}/awards`).then(r=>r.json()).catch(()=>({awards:[]})),
+    fetch(`${MLB}/people/${id}/stats?stats=careerPlayoffs&group=hitting&gameType=P`).then(r=>r.json()).catch(()=>({})),
+    fetch(`${MLB}/people/${id}/stats?stats=careerPlayoffs&group=pitching&gameType=P`).then(r=>r.json()).catch(()=>({})),
   ]);
   const person = (iRes.people || [])[0] || {};
   const awardsArr = aRes.awards || person.awards || [];
-  const hitting = (((hRes.stats||[])[0]||{}).splits||[])[0];
+  const hitting  = (((hRes.stats||[])[0]||{}).splits||[])[0];
   const pitching = (((pRes.stats||[])[0]||{}).splits||[])[0];
+  const psHitSplit = (((psHRes.stats||[])[0]||{}).splits||[])[0];
+  const psPitSplit = (((psPRes.stats||[])[0]||{}).splits||[])[0];
+  const postseasonApps = Math.max(
+    +(psHitSplit?.stat?.gamesPlayed || 0),
+    +(psPitSplit?.stat?.gamesPlayed || 0)
+  );
   return {
     person,
-    hitting: hitting ? hitting.stat : null,
+    hitting:  hitting  ? hitting.stat  : null,
     pitching: pitching ? pitching.stat : null,
-    awards: parseAwards(awardsArr)
+    awards: parseAwards(awardsArr),
+    postseasonApps,
   };
 }
 
 function parseAwards(arr) {
   const awards = Array.isArray(arr) ? arr : [];
-  const count = (...keys) => awards.filter(a => {
-    const id = (a.id || '').toUpperCase();
-    const nm = (a.name || '').toUpperCase();
-    return keys.some(k => id.includes(k) || nm.includes(k));
-  }).length;
+  const exact = id => awards.filter(a => a.id === id).length;
   return {
-    allStar:      count('ASG', 'ALL-STAR', 'ALLSTAR'),
-    mvp:          count('MVP'),
-    cyYoung:      count('CYA', 'CY YOUNG', 'CYYOUNG'),
-    goldGlove:    count('GG', 'GOLD GLOVE'),
-    silverSlugger:count('SS', 'SILVER SLUG'),
-    worldSeries:  count('WSRING', 'WS RING', 'WORLD SERIES RING', 'CHAMPIONSHIP RING'),
+    allStar:       exact('MLBAS'),
+    mvp:           exact('MLBMVP'),
+    cyYoung:       exact('MLBCY'),
+    goldGlove:     exact('MLBGG'),
+    silverSlugger: exact('MLBSS'),
   };
 }
 
@@ -661,7 +665,6 @@ function calcHOF(s, awards) {
     if (pitcher) score += 0.12 * Math.min(awards.cyYoung, 3);
     if (awards.allStar >= 5)  score += 0.08;
     if (awards.allStar >= 10) score += 0.06;
-    score += 0.02 * Math.min(awards.worldSeries, 4);
     if (!pitcher && awards.goldGlove >= 3) score += 0.04;
   }
   const verdict = hofMember ? 'hof' : score >= 0.65 ? 'yes' : score >= 0.30 ? 'borderline' : 'no';
@@ -717,11 +720,12 @@ function renderPercentileBars(sel1, sel2, stats1, stats2) {
   </div>`;
 }
 
-function renderAwards(awards, pitcher) {
+function renderAwards(awards, pitcher, postseasonApps) {
   if (!awards) return '';
+  const ps = postseasonApps || 0;
   const items = pitcher
-    ? [['All-Stars', awards.allStar], ['Cy Young', awards.cyYoung], ['MVP', awards.mvp], ['WS Rings', awards.worldSeries]]
-    : [['All-Stars', awards.allStar], ['MVP', awards.mvp], ['Gold Gloves', awards.goldGlove], ['Silver Sluggers', awards.silverSlugger], ['WS Rings', awards.worldSeries]];
+    ? [['All-Stars', awards.allStar], ['Cy Young', awards.cyYoung], ['MVP', awards.mvp], ['Postseason G', ps]]
+    : [['All-Stars', awards.allStar], ['MVP', awards.mvp], ['Gold Gloves', awards.goldGlove], ['Silver Sluggers', awards.silverSlugger], ['Postseason G', ps]];
   const html = items.map(([lbl, val]) => {
     const hi = val > 0 ? ' has-award' : '';
     return `<div class="award-item"><span class="award-num${hi}">${val}</span><span class="award-lbl${hi}">${lbl}</span></div>`;
@@ -736,11 +740,9 @@ function renderCard(sel, stats, hof) {
   const active = stats.person.active ? 'Active' : 'Retired';
   let rows = '';
   if (pitcher && st) {
-    const eraPlus = +st.era > 0 ? Math.round(100 * (4.00 / +st.era)) : '—';
     rows = [
       ['Wins', st.wins||'—'],
       ['ERA', (+st.era||0).toFixed(2)],
-      ['ERA+', eraPlus],
       ['Strikeouts', (+st.strikeOuts||0).toLocaleString()],
       ['Innings pitched', Math.round(+st.inningsPitched||0).toLocaleString()],
       ['WHIP', (+st.whip||0).toFixed(3)],
@@ -748,14 +750,12 @@ function renderCard(sel, stats, hof) {
     ].map(([l,v])=>`<div class="stat-row"><span class="stat-lbl">${l}</span><span class="stat-val">${v}</span></div>`).join('');
   } else if (st) {
     const avg = +st.avg||0, obp = +st.obp||0, slg = +st.slg||0;
-    const opsPlus = (obp+slg) > 0 ? Math.round(100 * (obp+slg) / 0.728) : '—';
     rows = [
       ['Games', (+st.gamesPlayed||0).toLocaleString()],
       ['Hits', (+st.hits||0).toLocaleString()],
       ['Home runs', st.homeRuns||'—'],
       ['RBI', (+st.rbi||0).toLocaleString()],
       ['AVG / OBP / SLG', `${avg.toFixed(3)} / ${obp.toFixed(3)} / ${slg.toFixed(3)}`],
-      ['OPS+', opsPlus],
       ['Stolen bases', st.stolenBases||'0'],
     ].map(([l,v])=>`<div class="stat-row"><span class="stat-lbl">${l}</span><span class="stat-val">${v}</span></div>`).join('');
   } else {
@@ -770,7 +770,7 @@ function renderCard(sel, stats, hof) {
       ${notInducted}
     </div>
     <div class="pcard-stats">${rows}</div>
-    ${renderAwards(stats.awards, pitcher)}
+    ${renderAwards(stats.awards, pitcher, stats.postseasonApps)}
   </div>`;
 }
 
