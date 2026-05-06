@@ -269,9 +269,92 @@
     .hof-grid { grid-template-columns: 1fr; }
     .site-header h1 { font-size: 56px; }
   }
+
+  /* Theme toggle button */
+  .theme-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(201,168,76,0.35);
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--cream);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .theme-toggle:hover { background: rgba(255,255,255,0.14); border-color: var(--gold); }
+  .theme-toggle .toggle-icon { font-size: 15px; line-height: 1; }
+
+  /* Light mode overrides */
+  body.light-mode {
+    background: #f2ede3;
+    color: #1a3a1a;
+  }
+  body.light-mode::before {
+    background:
+      repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(0,0,0,0.025) 60px, rgba(0,0,0,0.025) 61px),
+      repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(0,0,0,0.025) 60px, rgba(0,0,0,0.025) 61px);
+  }
+  body.light-mode .site-header { border-color: rgba(139,98,0,0.25); }
+  body.light-mode .site-header h1 { color: #1a3a1a; }
+  body.light-mode .site-header .eyebrow,
+  body.light-mode .site-header h1 span { color: #8b6200; }
+  body.light-mode .site-header p { color: rgba(26,58,26,0.55); }
+  body.light-mode .search-field label { color: #8b6200; }
+  body.light-mode .search-field input { background: #ffffff; border-color: rgba(139,98,0,0.3); color: #1a3a1a; }
+  body.light-mode .search-field input::placeholder { color: rgba(26,58,26,0.35); }
+  body.light-mode .search-field input:focus { border-color: #8b6200; background: #ffffff; }
+  body.light-mode .suggestions { background: #ffffff; border-color: rgba(139,98,0,0.35); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+  body.light-mode .sugg-item { color: #1a3a1a; border-color: rgba(0,0,0,0.06); }
+  body.light-mode .sugg-item:hover { background: rgba(139,98,0,0.08); }
+  body.light-mode .sugg-item .sugg-meta { color: rgba(26,58,26,0.45); }
+  body.light-mode .sugg-item .sugg-pos { color: #8b6200; }
+  body.light-mode .selected-tag { color: #2d7a2d; background: rgba(45,122,45,0.12); border-color: rgba(45,122,45,0.3); }
+  body.light-mode .search-status { color: rgba(26,58,26,0.4); }
+  body.light-mode .compare-btn { background: #8b6200; color: #f2ede3; }
+  body.light-mode .compare-btn:hover { background: #a07500; }
+  body.light-mode .quick-picks p { color: rgba(26,58,26,0.4); }
+  body.light-mode .chip { border-color: rgba(139,98,0,0.25); color: rgba(26,58,26,0.6); background: transparent; }
+  body.light-mode .chip:hover { border-color: #8b6200; color: #8b6200; }
+  body.light-mode .loading p { color: rgba(26,58,26,0.5); }
+  body.light-mode .spinner { border-color: rgba(139,98,0,0.2); border-top-color: #8b6200; }
+  body.light-mode .results-header h2 { color: #8b6200; }
+  body.light-mode .results-header p { color: rgba(26,58,26,0.5); }
+  body.light-mode .pcard { background: #ffffff; border-color: rgba(139,98,0,0.2); }
+  body.light-mode .pcard-top { background: rgba(139,98,0,0.06); border-color: rgba(139,98,0,0.15); }
+  body.light-mode .pcard-name { color: #1a3a1a; }
+  body.light-mode .pcard-meta { color: rgba(26,58,26,0.5); }
+  body.light-mode .stat-row { border-color: rgba(0,0,0,0.06); }
+  body.light-mode .stat-lbl { color: rgba(26,58,26,0.5); }
+  body.light-mode .stat-val { color: #1a3a1a; }
+  body.light-mode .stat-val.hi { color: #8b6200; }
+  body.light-mode .section-label { color: rgba(139,98,0,0.7); }
+  body.light-mode .hof-card { background: #ffffff; border-color: rgba(0,0,0,0.09); }
+  body.light-mode .hof-card-name { color: #8b6200; }
+  body.light-mode .crit-row { border-color: rgba(0,0,0,0.06); }
+  body.light-mode .crit-val { color: #1a3a1a; }
+  body.light-mode .crit-bench { color: rgba(26,58,26,0.4); }
+  body.light-mode .analysis-box { background: rgba(139,98,0,0.06); border-color: rgba(139,98,0,0.2); }
+  body.light-mode .analysis-box .analysis-label { color: #8b6200; }
+  body.light-mode .analysis-box p { color: rgba(26,58,26,0.8); }
+  body.light-mode .reset-btn { color: rgba(26,58,26,0.4); border-color: rgba(0,0,0,0.1); }
+  body.light-mode .reset-btn:hover { color: #1a3a1a; border-color: rgba(0,0,0,0.25); }
+  body.light-mode .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(139,98,0,0.3); color: #1a3a1a; }
+  body.light-mode .theme-toggle:hover { background: rgba(0,0,0,0.1); border-color: #8b6200; }
 </style>
 </head>
 <body>
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle theme">
+  <span class="toggle-icon" id="themeIcon">☀</span>
+  <span id="themeLabel">Light</span>
+</button>
 <div class="page">
 
   <header class="site-header">
@@ -586,6 +669,19 @@ function resetAll() {
 
 setupInput(0);
 setupInput(1);
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  document.getElementById('themeIcon').textContent = isLight ? '☾' : '☀';
+  document.getElementById('themeLabel').textContent = isLight ? 'Dark' : 'Light';
+  localStorage.setItem('hof-theme', isLight ? 'light' : 'dark');
+}
+
+if (localStorage.getItem('hof-theme') === 'light') {
+  document.body.classList.add('light-mode');
+  document.getElementById('themeIcon').textContent = '☾';
+  document.getElementById('themeLabel').textContent = 'Dark';
+}
 </script>
 </body>
 </html>
