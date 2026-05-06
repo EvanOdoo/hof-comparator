@@ -342,6 +342,50 @@
   body.light-mode .reset-btn:hover { color: #0d1c35; border-color: rgba(0,0,0,0.25); }
   body.light-mode .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(13,28,53,0.25); color: #0d1c35; }
   body.light-mode .theme-toggle:hover { background: rgba(0,0,0,0.1); border-color: #1e3860; }
+
+  /* Percentile bar chart */
+  .percentile-section { margin-bottom: 1.5rem; }
+  .perc-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+  .perc-header {
+    display: grid;
+    grid-template-columns: 90px 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .perc-player-name { font-size: 11px; font-weight: 500; color: var(--silver); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .perc-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .perc-row:last-child { border-bottom: none; }
+  .perc-stat-lbl { font-size: 11px; color: rgba(240,244,252,0.45); letter-spacing: 0.04em; }
+  .perc-cell { display: flex; align-items: center; gap: 8px; }
+  .perc-track { flex: 1; height: 7px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+  .perc-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+  .fill-p1 { background: var(--silver); }
+  .fill-p2 { background: #7090c0; }
+  .perc-num { font-size: 11px; color: rgba(240,244,252,0.5); min-width: 36px; font-variant-numeric: tabular-nums; }
+
+  body.light-mode .perc-card { background: #ffffff; border-color: rgba(0,0,0,0.09); }
+  body.light-mode .perc-header { border-color: rgba(0,0,0,0.06); }
+  body.light-mode .perc-player-name { color: #1e3860; }
+  body.light-mode .perc-row { border-color: rgba(0,0,0,0.05); }
+  body.light-mode .perc-stat-lbl { color: rgba(13,28,53,0.45); }
+  body.light-mode .perc-track { background: rgba(0,0,0,0.08); }
+  body.light-mode .fill-p1 { background: #0d1c35; }
+  body.light-mode .fill-p2 { background: #3a6090; }
+  body.light-mode .perc-num { color: rgba(13,28,53,0.5); }
 </style>
 </head>
 <body>
@@ -405,6 +449,7 @@
       <p id="resultsSubtitle"></p>
     </div>
     <div class="player-cards" id="playerCards"></div>
+    <div id="percSection"></div>
     <div class="hof-section">
       <div class="section-label">HOF criteria breakdown</div>
       <div class="hof-grid" id="hofGrid"></div>
@@ -420,6 +465,7 @@
 
 </div>
 
+<script src="hof-data.js"></script>
 <script>
 const MLB = 'https://statsapi.mlb.com/api/v1';
 const selected = [null, null];
@@ -567,6 +613,47 @@ function calcHOF(s) {
 
 function verdictLabel(v) { return v==='yes'?'Strong HOF case':v==='borderline'?'Borderline HOF':'Below HOF threshold'; }
 
+function normHitter(st) {
+  return { hits: +st.hits||0, hr: +st.homeRuns||0, rbi: +st.rbi||0, avg: +st.avg||0, obp: +st.obp||0, slg: +st.slg||0, g: +st.gamesPlayed||0, sb: +st.stolenBases||0 };
+}
+function normPitcher(st) {
+  return { wins: +st.wins||0, era: +st.era||99, so: +st.strikeOuts||0, whip: +st.whip||99, ip: +st.inningsPitched||0, sv: +st.saves||0 };
+}
+
+function barRow(label, pct1, pct2) {
+  return `<div class="perc-row">
+    <span class="perc-stat-lbl">${label}</span>
+    <div class="perc-cell"><div class="perc-track"><div class="perc-fill fill-p1" style="width:${pct1}%"></div></div><span class="perc-num">${pct1}th</span></div>
+    <div class="perc-cell"><div class="perc-track"><div class="perc-fill fill-p2" style="width:${pct2}%"></div></div><span class="perc-num">${pct2}th</span></div>
+  </div>`;
+}
+
+function renderPercentileBars(sel1, sel2, stats1, stats2) {
+  const pit1 = isPitcher(stats1.person), pit2 = isPitcher(stats2.person);
+  if (pit1 !== pit2) return '';
+  let rows = '';
+  if (pit1) {
+    if (!stats1.pitching || !stats2.pitching) return '';
+    const p1 = getPitcherPercentiles(normPitcher(stats1.pitching));
+    const p2 = getPitcherPercentiles(normPitcher(stats2.pitching));
+    rows = [['Wins','w'],['ERA','era'],['Strikeouts','so'],['Inn. Pitched','ip'],['WHIP','whip'],['Saves','sv']]
+      .map(([lbl,k]) => barRow(lbl, p1[k]||0, p2[k]||0)).join('');
+  } else {
+    if (!stats1.hitting || !stats2.hitting) return '';
+    const h1 = getHitterPercentiles(normHitter(stats1.hitting));
+    const h2 = getHitterPercentiles(normHitter(stats2.hitting));
+    rows = [['Hits','hits'],['Home Runs','hr'],['RBI','rbi'],['Avg','avg'],['OBP','obp'],['SLG','slg'],['Games','g']]
+      .map(([lbl,k]) => barRow(lbl, h1[k]||0, h2[k]||0)).join('');
+  }
+  return `<div class="percentile-section">
+    <div class="section-label">HOF percentile comparison</div>
+    <div class="perc-card">
+      <div class="perc-header"><span></span><span class="perc-player-name">${sel1.name}</span><span class="perc-player-name">${sel2.name}</span></div>
+      ${rows}
+    </div>
+  </div>`;
+}
+
 function renderCard(sel, stats, hof) {
   const pitcher = isPitcher(stats.person);
   const st = pitcher ? stats.pitching : stats.hitting;
@@ -638,6 +725,7 @@ async function doCompare() {
     const [s1, s2] = await Promise.all([fetchStats(selected[0].id), fetchStats(selected[1].id)]);
     const hof1 = calcHOF(s1), hof2 = calcHOF(s2);
     document.getElementById('playerCards').innerHTML = renderCard(selected[0], s1, hof1) + renderCard(selected[1], s2, hof2);
+    document.getElementById('percSection').innerHTML = renderPercentileBars(selected[0], selected[1], s1, s2);
     document.getElementById('hofGrid').innerHTML = renderHOF(selected[0], hof1) + renderHOF(selected[1], hof2);
     document.getElementById('resultsTitle').textContent = selected[0].name + ' vs ' + selected[1].name;
     document.getElementById('resultsSubtitle').textContent = 'Career stats via MLB Stats API';
