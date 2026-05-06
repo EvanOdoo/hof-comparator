@@ -618,13 +618,16 @@ async function fetchStats(id) {
 
 function parseAwards(arr) {
   const awards = Array.isArray(arr) ? arr : [];
-  const exact = id => awards.filter(a => a.id === id).length;
+  const has = (...terms) => awards.filter(a => {
+    const nm = (a.name || '').toLowerCase();
+    const id = (a.id  || '').toLowerCase();
+    return terms.some(t => nm.includes(t) || id.includes(t));
+  }).length;
   return {
-    allStar:       exact('MLBAS'),
-    mvp:           exact('MLBMVP'),
-    cyYoung:       exact('MLBCY'),
-    goldGlove:     exact('MLBGG'),
-    silverSlugger: exact('MLBSS'),
+    mvp:           has('most valuable player', 'mvp'),
+    cyYoung:       has('cy young', 'cya'),
+    goldGlove:     has('gold glove'),
+    silverSlugger: has('silver slugger'),
   };
 }
 
@@ -663,8 +666,6 @@ function calcHOF(s, awards) {
   if (awards) {
     score += 0.12 * Math.min(awards.mvp, 3);
     if (pitcher) score += 0.12 * Math.min(awards.cyYoung, 3);
-    if (awards.allStar >= 5)  score += 0.08;
-    if (awards.allStar >= 10) score += 0.06;
     if (!pitcher && awards.goldGlove >= 3) score += 0.04;
   }
   const verdict = hofMember ? 'hof' : score >= 0.65 ? 'yes' : score >= 0.30 ? 'borderline' : 'no';
@@ -675,11 +676,11 @@ function verdictLabel(v) {
   return v==='hof'?'Hall of Famer':v==='yes'?'Strong HOF case':v==='borderline'?'Borderline HOF':'Below HOF threshold';
 }
 
-function normHitter(st, awards) {
-  return { hits:+st.hits||0, hr:+st.homeRuns||0, rbi:+st.rbi||0, avg:+st.avg||0, obp:+st.obp||0, slg:+st.slg||0, g:+st.gamesPlayed||0, sb:+st.stolenBases||0, as: awards ? awards.allStar : 0 };
+function normHitter(st) {
+  return { hits:+st.hits||0, hr:+st.homeRuns||0, rbi:+st.rbi||0, avg:+st.avg||0, obp:+st.obp||0, slg:+st.slg||0, g:+st.gamesPlayed||0, sb:+st.stolenBases||0 };
 }
-function normPitcher(st, awards) {
-  return { wins:+st.wins||0, era:+st.era||99, so:+st.strikeOuts||0, whip:+st.whip||99, ip:+st.inningsPitched||0, sv:+st.saves||0, as: awards ? awards.allStar : 0 };
+function normPitcher(st) {
+  return { wins:+st.wins||0, era:+st.era||99, so:+st.strikeOuts||0, whip:+st.whip||99, ip:+st.inningsPitched||0, sv:+st.saves||0 };
 }
 
 function pctClass(p) {
@@ -700,15 +701,15 @@ function renderPercentileBars(sel1, sel2, stats1, stats2) {
   let rows = '';
   if (pit1) {
     if (!stats1.pitching || !stats2.pitching) return '';
-    const p1 = getPitcherPercentiles(normPitcher(stats1.pitching, stats1.awards));
-    const p2 = getPitcherPercentiles(normPitcher(stats2.pitching, stats2.awards));
-    rows = [['Wins','w'],['ERA','era'],['Strikeouts','so'],['Inn. Pitched','ip'],['WHIP','whip'],['Saves','sv'],['All-Stars','as']]
+    const p1 = getPitcherPercentiles(normPitcher(stats1.pitching));
+    const p2 = getPitcherPercentiles(normPitcher(stats2.pitching));
+    rows = [['Wins','w'],['ERA','era'],['Strikeouts','so'],['Inn. Pitched','ip'],['WHIP','whip'],['Saves','sv']]
       .map(([lbl,k]) => barRow(lbl, p1[k]||0, p2[k]||0)).join('');
   } else {
     if (!stats1.hitting || !stats2.hitting) return '';
-    const h1 = getHitterPercentiles(normHitter(stats1.hitting, stats1.awards));
-    const h2 = getHitterPercentiles(normHitter(stats2.hitting, stats2.awards));
-    rows = [['Hits','hits'],['Home Runs','hr'],['RBI','rbi'],['Avg','avg'],['OBP','obp'],['SLG','slg'],['Games','g'],['All-Stars','as']]
+    const h1 = getHitterPercentiles(normHitter(stats1.hitting));
+    const h2 = getHitterPercentiles(normHitter(stats2.hitting));
+    rows = [['Hits','hits'],['Home Runs','hr'],['RBI','rbi'],['Avg','avg'],['OBP','obp'],['SLG','slg'],['Games','g']]
       .map(([lbl,k]) => barRow(lbl, h1[k]||0, h2[k]||0)).join('');
   }
   return `<div class="percentile-section">
@@ -724,8 +725,8 @@ function renderAwards(awards, pitcher, postseasonApps) {
   if (!awards) return '';
   const ps = postseasonApps || 0;
   const items = pitcher
-    ? [['All-Stars', awards.allStar], ['Cy Young', awards.cyYoung], ['MVP', awards.mvp], ['Postseason G', ps]]
-    : [['All-Stars', awards.allStar], ['MVP', awards.mvp], ['Gold Gloves', awards.goldGlove], ['Silver Sluggers', awards.silverSlugger], ['Postseason G', ps]];
+    ? [['Cy Young', awards.cyYoung], ['MVP', awards.mvp], ['Postseason G', ps]]
+    : [['MVP', awards.mvp], ['Gold Gloves', awards.goldGlove], ['Silver Sluggers', awards.silverSlugger], ['Postseason G', ps]];
   const html = items.map(([lbl, val]) => {
     const hi = val > 0 ? ' has-award' : '';
     return `<div class="award-item"><span class="award-num${hi}">${val}</span><span class="award-lbl${hi}">${lbl}</span></div>`;

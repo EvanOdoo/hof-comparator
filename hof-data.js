@@ -132,7 +132,6 @@ function getHitterPercentiles(stats) {
     slg:  calcPercentile(stats.slg,  HOF_DATA.hitters.map(p => p.slg)),
     g:    calcPercentile(stats.g,    HOF_DATA.hitters.map(p => p.g)),
     sb:   calcPercentile(stats.sb,   HOF_DATA.hitters.map(p => p.sb)),
-    as:   calcPercentile(stats.as||0, HOF_DATA.hitters.map(p => p.as)),
   };
 }
 
@@ -144,7 +143,6 @@ function getPitcherPercentiles(stats) {
     whip: calcPercentile(stats.whip,  HOF_DATA.pitchers.map(p => p.whip), false),
     ip:   calcPercentile(stats.ip,    HOF_DATA.pitchers.map(p => p.ip)),
     sv:   calcPercentile(stats.sv,    HOF_DATA.pitchers.map(p => p.sv)),
-    as:   calcPercentile(stats.as||0, HOF_DATA.pitchers.map(p => p.as)),
   };
 }
 
