@@ -195,9 +195,10 @@
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
-  .v-yes { background: rgba(45,160,45,0.2); color: #6dbb6d; border: 1px solid rgba(45,160,45,0.3); }
+  .v-hof        { background: rgba(212,170,0,0.2);  color: #e8c840; border: 1px solid rgba(212,170,0,0.45); }
+  .v-yes        { background: rgba(45,160,45,0.2);  color: #6dbb6d; border: 1px solid rgba(45,160,45,0.3); }
   .v-borderline { background: rgba(212,137,10,0.2); color: #e8a832; border: 1px solid rgba(212,137,10,0.3); }
-  .v-no { background: rgba(192,57,43,0.2); color: #e05252; border: 1px solid rgba(192,57,43,0.3); }
+  .v-no         { background: rgba(192,57,43,0.2);  color: #e05252; border: 1px solid rgba(192,57,43,0.3); }
 
   .pcard-stats { padding: 1rem 1.25rem; }
   .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
@@ -205,6 +206,18 @@
   .stat-lbl { color: rgba(240,244,252,0.5); }
   .stat-val { font-weight: 500; color: var(--white); font-variant-numeric: tabular-nums; }
   .stat-val.hi { color: var(--silver-light); }
+
+  /* HOF induction status */
+  .hof-not-inducted { font-size: 10px; color: rgba(240,244,252,0.28); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 5px; }
+
+  /* Awards section */
+  .awards-section { padding: 0.7rem 1.25rem 0.85rem; border-top: 1px solid rgba(255,255,255,0.05); }
+  .awards-grid { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+  .award-item { text-align: center; min-width: 44px; }
+  .award-num { font-size: 17px; font-weight: 500; color: rgba(240,244,252,0.25); display: block; line-height: 1; }
+  .award-num.has-award { color: var(--silver-light); }
+  .award-lbl { font-size: 9px; color: rgba(240,244,252,0.32); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 3px; display: block; }
+  .award-lbl.has-award { color: rgba(240,244,252,0.5); }
 
   /* HOF criteria */
   .hof-section { margin-bottom: 1.5rem; }
@@ -342,6 +355,12 @@
   body.light-mode .reset-btn:hover { color: #0d1c35; border-color: rgba(0,0,0,0.25); }
   body.light-mode .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(13,28,53,0.25); color: #0d1c35; }
   body.light-mode .theme-toggle:hover { background: rgba(0,0,0,0.1); border-color: #1e3860; }
+  body.light-mode .hof-not-inducted { color: rgba(13,28,53,0.3); }
+  body.light-mode .awards-section { border-color: rgba(0,0,0,0.06); }
+  body.light-mode .award-num { color: rgba(13,28,53,0.2); }
+  body.light-mode .award-num.has-award { color: #1e3860; }
+  body.light-mode .award-lbl { color: rgba(13,28,53,0.3); }
+  body.light-mode .award-lbl.has-award { color: rgba(13,28,53,0.55); }
 
   /* Percentile bar chart */
   .percentile-section { margin-bottom: 1.5rem; }
@@ -570,15 +589,39 @@ function showErr(msg) {
 }
 
 async function fetchStats(id) {
-  const [hRes, pRes, iRes] = await Promise.all([
+  const [hRes, pRes, iRes, aRes] = await Promise.all([
     fetch(`${MLB}/people/${id}/stats?stats=career&group=hitting&gameType=R&sportId=1`).then(r=>r.json()),
     fetch(`${MLB}/people/${id}/stats?stats=career&group=pitching&gameType=R&sportId=1`).then(r=>r.json()),
-    fetch(`${MLB}/people/${id}?hydrate=awards`).then(r=>r.json())
+    fetch(`${MLB}/people/${id}?hydrate=awards`).then(r=>r.json()),
+    fetch(`${MLB}/people/${id}/awards`).then(r=>r.json()).catch(()=>({awards:[]}))
   ]);
   const person = (iRes.people || [])[0] || {};
+  const awardsArr = aRes.awards || person.awards || [];
   const hitting = (((hRes.stats||[])[0]||{}).splits||[])[0];
   const pitching = (((pRes.stats||[])[0]||{}).splits||[])[0];
-  return { person, hitting: hitting ? hitting.stat : null, pitching: pitching ? pitching.stat : null };
+  return {
+    person,
+    hitting: hitting ? hitting.stat : null,
+    pitching: pitching ? pitching.stat : null,
+    awards: parseAwards(awardsArr)
+  };
+}
+
+function parseAwards(arr) {
+  const awards = Array.isArray(arr) ? arr : [];
+  const count = (...keys) => awards.filter(a => {
+    const id = (a.id || '').toUpperCase();
+    const nm = (a.name || '').toUpperCase();
+    return keys.some(k => id.includes(k) || nm.includes(k));
+  }).length;
+  return {
+    allStar:      count('ASG', 'ALL-STAR', 'ALLSTAR'),
+    mvp:          count('MVP'),
+    cyYoung:      count('CYA', 'CY YOUNG', 'CYYOUNG'),
+    goldGlove:    count('GG', 'GOLD GLOVE'),
+    silverSlugger:count('SS', 'SILVER SLUG'),
+    worldSeries:  count('WSRING', 'WS RING', 'WORLD SERIES RING', 'CHAMPIONSHIP RING'),
+  };
 }
 
 function isPitcher(person) {
@@ -586,42 +629,54 @@ function isPitcher(person) {
   return ['P','SP','RP'].includes(pos);
 }
 
-function calcHOF(s) {
+function calcHOF(s, awards) {
   const pitcher = isPitcher(s.person);
+  const hofMember = isHOFMember(s.person.fullName || s.person.name || '');
   const criteria = [];
   if (pitcher && s.pitching) {
     const p = s.pitching;
-    const w = +p.wins||0, era = +p.era||99, so = +p.strikeOuts||0, ip = +p.inningsPitched||0, whip = +p.whip||99, sv = +p.saves||0;
-    criteria.push({ label:'Career wins', val: w, display: w, met: w>=300?'yes':w>=200?'partial':'no', bench:'300 wins = HOF benchmark' });
-    criteria.push({ label:'ERA', val: era, display: era.toFixed(2), met: era<2.75?'yes':era<3.50?'partial':'no', bench:'Under 3.00 is elite' });
-    criteria.push({ label:'Strikeouts', val: so, display: so.toLocaleString(), met: so>=3000?'yes':so>=2000?'partial':'no', bench:'3,000 K = HOF benchmark' });
-    criteria.push({ label:'Innings pitched', val: ip, display: Math.round(ip).toLocaleString(), met: ip>=3000?'yes':ip>=2000?'partial':'no', bench:'3,000 IP shows longevity' });
-    criteria.push({ label:'WHIP', val: whip, display: whip.toFixed(3), met: whip<1.10?'yes':whip<1.30?'partial':'no', bench:'Under 1.10 is elite' });
-    if (sv > 100) criteria.push({ label:'Saves', val: sv, display: sv, met: sv>=400?'yes':sv>=300?'partial':'no', bench:'400+ saves = HOF closer' });
+    const w=+p.wins||0, era=+p.era||99, so=+p.strikeOuts||0, ip=+p.inningsPitched||0, whip=+p.whip||99, sv=+p.saves||0;
+    criteria.push({label:'Career wins',    val:w,    display:w,                              met:w>=300?'yes':w>=200?'partial':'no',        bench:'300 wins = HOF benchmark'});
+    criteria.push({label:'ERA',            val:era,  display:era.toFixed(2),                 met:era<2.75?'yes':era<3.50?'partial':'no',    bench:'Under 3.00 is elite'});
+    criteria.push({label:'Strikeouts',     val:so,   display:so.toLocaleString(),            met:so>=3000?'yes':so>=2000?'partial':'no',    bench:'3,000 K = HOF benchmark'});
+    criteria.push({label:'Innings pitched',val:ip,   display:Math.round(ip).toLocaleString(),met:ip>=3000?'yes':ip>=2000?'partial':'no',    bench:'3,000 IP shows longevity'});
+    criteria.push({label:'WHIP',           val:whip, display:whip.toFixed(3),                met:whip<1.10?'yes':whip<1.30?'partial':'no', bench:'Under 1.10 is elite'});
+    if (sv>100) criteria.push({label:'Saves',val:sv,display:sv,met:sv>=400?'yes':sv>=300?'partial':'no',bench:'400+ saves = HOF closer'});
   } else if (s.hitting) {
     const h = s.hitting;
-    const hits=+h.hits||0, hr=+h.homeRuns||0, rbi=+h.rbi||0, avg=+h.avg||0, obp=+h.obp||0, slg=+h.slg||0, g=+h.gamesPlayed||0, sb=+h.stolenBases||0;
-    criteria.push({ label:'Career hits', val: hits, display: hits.toLocaleString(), met: hits>=3000?'yes':hits>=2000?'partial':'no', bench:'3,000 hits = near-automatic HOF' });
-    criteria.push({ label:'Home runs', val: hr, display: hr, met: hr>=500?'yes':hr>=300?'partial':'no', bench:'500 HR = HOF benchmark' });
-    criteria.push({ label:'RBI', val: rbi, display: rbi.toLocaleString(), met: rbi>=1500?'yes':rbi>=1000?'partial':'no', bench:'1,500+ RBI is elite' });
-    criteria.push({ label:'Batting average', val: avg, display: avg.toFixed(3), met: avg>=0.300?'yes':avg>=0.275?'partial':'no', bench:'.300 career AVG is the bar' });
-    criteria.push({ label:'OBP', val: obp, display: obp.toFixed(3), met: obp>=0.380?'yes':obp>=0.350?'partial':'no', bench:'.380+ OBP is elite' });
-    criteria.push({ label:'SLG', val: slg, display: slg.toFixed(3), met: slg>=0.500?'yes':slg>=0.450?'partial':'no', bench:'.500+ SLG is elite' });
-    criteria.push({ label:'Games played', val: g, display: g.toLocaleString(), met: g>=2000?'yes':g>=1500?'partial':'no', bench:'2,000+ games shows longevity' });
+    const hits=+h.hits||0,hr=+h.homeRuns||0,rbi=+h.rbi||0,avg=+h.avg||0,obp=+h.obp||0,slg=+h.slg||0,g=+h.gamesPlayed||0;
+    criteria.push({label:'Career hits',    val:hits, display:hits.toLocaleString(),  met:hits>=3000?'yes':hits>=2000?'partial':'no', bench:'3,000 hits = near-automatic HOF'});
+    criteria.push({label:'Home runs',      val:hr,   display:hr,                     met:hr>=500?'yes':hr>=300?'partial':'no',       bench:'500 HR = HOF benchmark'});
+    criteria.push({label:'RBI',            val:rbi,  display:rbi.toLocaleString(),   met:rbi>=1500?'yes':rbi>=1000?'partial':'no',   bench:'1,500+ RBI is elite'});
+    criteria.push({label:'Batting average',val:avg,  display:avg.toFixed(3),         met:avg>=0.300?'yes':avg>=0.275?'partial':'no', bench:'.300 career AVG is the bar'});
+    criteria.push({label:'OBP',            val:obp,  display:obp.toFixed(3),         met:obp>=0.380?'yes':obp>=0.350?'partial':'no', bench:'.380+ OBP is elite'});
+    criteria.push({label:'SLG',            val:slg,  display:slg.toFixed(3),         met:slg>=0.500?'yes':slg>=0.450?'partial':'no', bench:'.500+ SLG is elite'});
+    criteria.push({label:'Games played',   val:g,    display:g.toLocaleString(),     met:g>=2000?'yes':g>=1500?'partial':'no',       bench:'2,000+ games shows longevity'});
   }
   const yes = criteria.filter(c=>c.met==='yes').length;
   const part = criteria.filter(c=>c.met==='partial').length;
-  const score = criteria.length ? (yes*2+part)/(criteria.length*2) : 0;
-  return { criteria, verdict: score>=0.6?'yes':score>=0.3?'borderline':'no' };
+  let score = criteria.length ? (yes*2+part)/(criteria.length*2) : 0;
+  if (awards) {
+    score += 0.12 * Math.min(awards.mvp, 3);
+    if (pitcher) score += 0.12 * Math.min(awards.cyYoung, 3);
+    if (awards.allStar >= 5)  score += 0.08;
+    if (awards.allStar >= 10) score += 0.06;
+    score += 0.02 * Math.min(awards.worldSeries, 4);
+    if (!pitcher && awards.goldGlove >= 3) score += 0.04;
+  }
+  const verdict = hofMember ? 'hof' : score >= 0.65 ? 'yes' : score >= 0.30 ? 'borderline' : 'no';
+  return { criteria, verdict, hofMember };
 }
 
-function verdictLabel(v) { return v==='yes'?'Strong HOF case':v==='borderline'?'Borderline HOF':'Below HOF threshold'; }
-
-function normHitter(st) {
-  return { hits: +st.hits||0, hr: +st.homeRuns||0, rbi: +st.rbi||0, avg: +st.avg||0, obp: +st.obp||0, slg: +st.slg||0, g: +st.gamesPlayed||0, sb: +st.stolenBases||0 };
+function verdictLabel(v) {
+  return v==='hof'?'Hall of Famer':v==='yes'?'Strong HOF case':v==='borderline'?'Borderline HOF':'Below HOF threshold';
 }
-function normPitcher(st) {
-  return { wins: +st.wins||0, era: +st.era||99, so: +st.strikeOuts||0, whip: +st.whip||99, ip: +st.inningsPitched||0, sv: +st.saves||0 };
+
+function normHitter(st, awards) {
+  return { hits:+st.hits||0, hr:+st.homeRuns||0, rbi:+st.rbi||0, avg:+st.avg||0, obp:+st.obp||0, slg:+st.slg||0, g:+st.gamesPlayed||0, sb:+st.stolenBases||0, as: awards ? awards.allStar : 0 };
+}
+function normPitcher(st, awards) {
+  return { wins:+st.wins||0, era:+st.era||99, so:+st.strikeOuts||0, whip:+st.whip||99, ip:+st.inningsPitched||0, sv:+st.saves||0, as: awards ? awards.allStar : 0 };
 }
 
 function pctClass(p) {
@@ -642,15 +697,15 @@ function renderPercentileBars(sel1, sel2, stats1, stats2) {
   let rows = '';
   if (pit1) {
     if (!stats1.pitching || !stats2.pitching) return '';
-    const p1 = getPitcherPercentiles(normPitcher(stats1.pitching));
-    const p2 = getPitcherPercentiles(normPitcher(stats2.pitching));
-    rows = [['Wins','w'],['ERA','era'],['Strikeouts','so'],['Inn. Pitched','ip'],['WHIP','whip'],['Saves','sv']]
+    const p1 = getPitcherPercentiles(normPitcher(stats1.pitching, stats1.awards));
+    const p2 = getPitcherPercentiles(normPitcher(stats2.pitching, stats2.awards));
+    rows = [['Wins','w'],['ERA','era'],['Strikeouts','so'],['Inn. Pitched','ip'],['WHIP','whip'],['Saves','sv'],['All-Stars','as']]
       .map(([lbl,k]) => barRow(lbl, p1[k]||0, p2[k]||0)).join('');
   } else {
     if (!stats1.hitting || !stats2.hitting) return '';
-    const h1 = getHitterPercentiles(normHitter(stats1.hitting));
-    const h2 = getHitterPercentiles(normHitter(stats2.hitting));
-    rows = [['Hits','hits'],['Home Runs','hr'],['RBI','rbi'],['Avg','avg'],['OBP','obp'],['SLG','slg'],['Games','g']]
+    const h1 = getHitterPercentiles(normHitter(stats1.hitting, stats1.awards));
+    const h2 = getHitterPercentiles(normHitter(stats2.hitting, stats2.awards));
+    rows = [['Hits','hits'],['Home Runs','hr'],['RBI','rbi'],['Avg','avg'],['OBP','obp'],['SLG','slg'],['Games','g'],['All-Stars','as']]
       .map(([lbl,k]) => barRow(lbl, h1[k]||0, h2[k]||0)).join('');
   }
   return `<div class="percentile-section">
@@ -662,6 +717,18 @@ function renderPercentileBars(sel1, sel2, stats1, stats2) {
   </div>`;
 }
 
+function renderAwards(awards, pitcher) {
+  if (!awards) return '';
+  const items = pitcher
+    ? [['All-Stars', awards.allStar], ['Cy Young', awards.cyYoung], ['MVP', awards.mvp], ['WS Rings', awards.worldSeries]]
+    : [['All-Stars', awards.allStar], ['MVP', awards.mvp], ['Gold Gloves', awards.goldGlove], ['Silver Sluggers', awards.silverSlugger], ['WS Rings', awards.worldSeries]];
+  const html = items.map(([lbl, val]) => {
+    const hi = val > 0 ? ' has-award' : '';
+    return `<div class="award-item"><span class="award-num${hi}">${val}</span><span class="award-lbl${hi}">${lbl}</span></div>`;
+  }).join('');
+  return `<div class="awards-section"><div class="awards-grid">${html}</div></div>`;
+}
+
 function renderCard(sel, stats, hof) {
   const pitcher = isPitcher(stats.person);
   const st = pitcher ? stats.pitching : stats.hitting;
@@ -669,35 +736,41 @@ function renderCard(sel, stats, hof) {
   const active = stats.person.active ? 'Active' : 'Retired';
   let rows = '';
   if (pitcher && st) {
+    const eraPlus = +st.era > 0 ? Math.round(100 * (4.00 / +st.era)) : '—';
     rows = [
       ['Wins', st.wins||'—'],
       ['ERA', (+st.era||0).toFixed(2)],
+      ['ERA+', eraPlus],
       ['Strikeouts', (+st.strikeOuts||0).toLocaleString()],
       ['Innings pitched', Math.round(+st.inningsPitched||0).toLocaleString()],
       ['WHIP', (+st.whip||0).toFixed(3)],
       ['Saves', st.saves||'0'],
     ].map(([l,v])=>`<div class="stat-row"><span class="stat-lbl">${l}</span><span class="stat-val">${v}</span></div>`).join('');
   } else if (st) {
-    const avg = +st.avg||0;
-    const obp = +st.obp||0;
+    const avg = +st.avg||0, obp = +st.obp||0, slg = +st.slg||0;
+    const opsPlus = (obp+slg) > 0 ? Math.round(100 * (obp+slg) / 0.728) : '—';
     rows = [
       ['Games', (+st.gamesPlayed||0).toLocaleString()],
       ['Hits', (+st.hits||0).toLocaleString()],
       ['Home runs', st.homeRuns||'—'],
       ['RBI', (+st.rbi||0).toLocaleString()],
-      ['AVG / OBP / SLG', `${avg.toFixed(3)} / ${obp.toFixed(3)} / ${(+st.slg||0).toFixed(3)}`],
+      ['AVG / OBP / SLG', `${avg.toFixed(3)} / ${obp.toFixed(3)} / ${slg.toFixed(3)}`],
+      ['OPS+', opsPlus],
       ['Stolen bases', st.stolenBases||'0'],
     ].map(([l,v])=>`<div class="stat-row"><span class="stat-lbl">${l}</span><span class="stat-val">${v}</span></div>`).join('');
   } else {
-    rows = `<div class="stat-row"><span class="stat-lbl" style="color:rgba(245,240,232,0.4)">No career stats found</span></div>`;
+    rows = `<div class="stat-row"><span class="stat-lbl" style="color:rgba(240,244,252,0.35)">No career stats found</span></div>`;
   }
+  const notInducted = hof.hofMember ? '' : `<div class="hof-not-inducted">Not yet inducted</div>`;
   return `<div class="pcard">
     <div class="pcard-top">
       <div class="pcard-name">${sel.name}</div>
       <div class="pcard-meta">${pos} · ${active}</div>
       <span class="verdict-badge v-${hof.verdict}">${verdictLabel(hof.verdict)}</span>
+      ${notInducted}
     </div>
     <div class="pcard-stats">${rows}</div>
+    ${renderAwards(stats.awards, pitcher)}
   </div>`;
 }
 
@@ -731,7 +804,7 @@ async function doCompare() {
   document.getElementById('cmpBtn').disabled = true;
   try {
     const [s1, s2] = await Promise.all([fetchStats(selected[0].id), fetchStats(selected[1].id)]);
-    const hof1 = calcHOF(s1), hof2 = calcHOF(s2);
+    const hof1 = calcHOF(s1, s1.awards), hof2 = calcHOF(s2, s2.awards);
     document.getElementById('playerCards').innerHTML = renderCard(selected[0], s1, hof1) + renderCard(selected[1], s2, hof2);
     document.getElementById('percSection').innerHTML = renderPercentileBars(selected[0], selected[1], s1, s2);
     document.getElementById('hofGrid').innerHTML = renderHOF(selected[0], hof1) + renderHOF(selected[1], hof2);
