@@ -376,6 +376,10 @@
   .fill-p1 { background: var(--silver); }
   .fill-p2 { background: #7090c0; }
   .perc-num { font-size: 11px; color: rgba(240,244,252,0.5); min-width: 36px; font-variant-numeric: tabular-nums; }
+  .pct-elite { background: #5ab85a; }
+  .pct-good  { background: var(--silver); }
+  .pct-avg   { background: #e8a832; }
+  .pct-poor  { background: #e05252; }
 
   body.light-mode .perc-card { background: #ffffff; border-color: rgba(0,0,0,0.09); }
   body.light-mode .perc-header { border-color: rgba(0,0,0,0.06); }
@@ -620,11 +624,15 @@ function normPitcher(st) {
   return { wins: +st.wins||0, era: +st.era||99, so: +st.strikeOuts||0, whip: +st.whip||99, ip: +st.inningsPitched||0, sv: +st.saves||0 };
 }
 
+function pctClass(p) {
+  return p >= 75 ? 'pct-elite' : p >= 50 ? 'pct-good' : p >= 25 ? 'pct-avg' : 'pct-poor';
+}
+
 function barRow(label, pct1, pct2) {
   return `<div class="perc-row">
     <span class="perc-stat-lbl">${label}</span>
-    <div class="perc-cell"><div class="perc-track"><div class="perc-fill fill-p1" style="width:${pct1}%"></div></div><span class="perc-num">${pct1}th</span></div>
-    <div class="perc-cell"><div class="perc-track"><div class="perc-fill fill-p2" style="width:${pct2}%"></div></div><span class="perc-num">${pct2}th</span></div>
+    <div class="perc-cell"><div class="perc-track"><div class="perc-fill ${pctClass(pct1)}" style="width:${pct1}%"></div></div><span class="perc-num">${pct1}th</span></div>
+    <div class="perc-cell"><div class="perc-track"><div class="perc-fill ${pctClass(pct2)}" style="width:${pct2}%"></div></div><span class="perc-num">${pct2}th</span></div>
   </div>`;
 }
 
